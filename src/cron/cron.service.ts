@@ -11,11 +11,11 @@ import { RedisService } from '../redis/redis.service';
 @Injectable()
 export class CronService implements OnModuleInit {
 
-    private readonly redis: Redis;
+    // private readonly redis: Redis;
 
     @Inject(SchedulerRegistry) private schedulerRegistry:SchedulerRegistry;
-    @Inject(MongoService) private mongoService:MongoService;
-    @Inject(RedisService) private redisService: RedisService;
+    @Inject('MongoService') private mongoService:MongoService;
+    @Inject('RedisService') private redisService: RedisService;
     constructor(
         @Inject('CONFIG_OPTIONS') private options: Record<string, any>
     ) { }
@@ -25,18 +25,19 @@ export class CronService implements OnModuleInit {
     
     async scheduleCronJobsInit(){
         try {
-            const cronDocs= await (await this.mongoService.findAll()).toArray();
+            const cronDocs=  await this.mongoService.findAll();
             cronDocs.forEach((job) => {
                 const newJob = new CronJob(job.cronTime, async () => {
                     if (job.status.toUpperCase() != isActiveEnum.ACTIVE) { return; }
                     const lockKey: string = `cron-lock:${job.cronName}`;
-                    const lockAcquired: number = await this.redis.setnx(lockKey, '1');
+                    console.log(lockKey);
+                    const lockAcquired: number = await this.redisService.setnx(lockKey, '1');
                     if (lockAcquired === 0) return;
                     try {
                         let axiosRequestConfig: AxiosRequestConfig;
                         switch (job.cronMethod.toUpperCase()) {
                             case RequestMethodEnum.GET:
-                                axiosRequestConfig = {
+                                axiosRequestConfig = {        
                                     headers: {
                                         ...job.cronHeaders
                                     }
@@ -55,7 +56,7 @@ export class CronService implements OnModuleInit {
                                 break;
                         }
                     } finally {
-                        await this.redis.del(lockKey);
+                        await this.redisService.del(lockKey);
                     }
                 });
                 this.schedulerRegistry.addCronJob(job.cronName, newJob);
@@ -72,7 +73,7 @@ export class CronService implements OnModuleInit {
                 const newJob = new CronJob(job.cronTime, async () => {
                     if (job.status.toUpperCase() != isActiveEnum.ACTIVE) { return; }
                     const lockKey: string = `cron-lock:${job.cronName}`;
-                    const lockAcquired: number = await this.redis.setnx(lockKey, '1');
+                    const lockAcquired: number = await this.redisService.setnx(lockKey, '1');
                     if (lockAcquired === 0) return;
                     try {
                         let axiosRequestConfig: AxiosRequestConfig;
@@ -97,7 +98,7 @@ export class CronService implements OnModuleInit {
                                 break;
                         }
                     } finally {
-                        await this.redis.del(lockKey);
+                        await this.redisService.del(lockKey);
                     }
                 });
                 this.schedulerRegistry.addCronJob(job.cronName, newJob);
@@ -109,22 +110,27 @@ export class CronService implements OnModuleInit {
         }
     }
 
-    deleteJob(jobName: string, mongoFlag: boolean) {
+    deactivateJob(jobName: string) {
         try {
-            if (!(jobName in this.findAll())) {
-                return "CronJob Name not found.";
-            }
-            this.schedulerRegistry.deleteCronJob(jobName);
+            this.mongoService.deactivateJob(jobName);
             return "success";
         } catch (error) {
             return "fail";
         }
     }
 
-    findAll() {
+    activateJob(jobName: string ) {
         try {
-            const jobs = this.schedulerRegistry.getCronJobs();
-            return Array.from(jobs.keys()) || [];
+            this.activateJob(jobName);
+            return "success";
+        } catch (error) {
+            return "fail";
+        }
+    }
+
+    async findAll() {
+        try {
+           return await this.findAll();
         } catch (error) {
             return [];
         }

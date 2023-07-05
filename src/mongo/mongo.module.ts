@@ -1,7 +1,19 @@
-import { Module } from '@nestjs/common';
-import { MongoService } from './mongo.service';
+import { DynamicModule, Module } from "@nestjs/common";
+import { MongoService } from "./mongo.service";
 
-@Module({
-  providers: [MongoService]
-})
-export class MongoModule {}
+@Module({})
+export class MongoModule {
+  static register(options: Record<string, any>): DynamicModule {
+    return {
+      module:MongoModule,
+      providers: [
+        {
+          provide: "MongoService",
+          useFactory() {
+            return new MongoService(options);
+          },
+        },
+      ],
+    };
+  }
+}

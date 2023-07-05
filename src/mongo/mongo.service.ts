@@ -7,24 +7,16 @@ export class MongoService implements OnModuleDestroy {
   private URI: string;
   private client: MongoClient;
   private collection: Collection;
+  private mongoConfig: any;
   constructor(mongoConfig: any) {
+    this.mongoConfig = mongoConfig;
     this.URI = `${mongoConfig.protocol}://${mongoConfig.username}:${mongoConfig.password}@${mongoConfig.host}:${mongoConfig.port}/${mongoConfig.dbName}`;
     this.client = new MongoClient(this.URI);
-    this.setClient(mongoConfig);
   }
   onModuleDestroy() {
     this.client.close();
   }
 
-  async setClient(mongoConfig: any) {
-    try {
-      let mongoClient = await this.client.connect();
-      let db = mongoClient.db(mongoConfig.dbName);
-      this.collection = db.collection(mongoConfig.collection);
-    } catch (error) {
-      console.log(error);
-    }
-  }
   async findAOne(jobName: string) {
     try {
       const docs = await this.collection.findOne({ cronName: jobName });
@@ -36,8 +28,18 @@ export class MongoService implements OnModuleDestroy {
 
   async findAll() {
     try {
-      const docs = await this.collection.find();
-      return docs;
+      let mongoClient = await this.client.connect();
+      this.collection = mongoClient
+        .db()
+        .collection(this.mongoConfig.collection);
+      const docs = await this.collection.find({}).toArray();
+      let array = [];
+      await docs.forEach((doc) => {
+        array.push(doc);
+      });
+      mongoClient.close();
+      console.log(array);
+      return array;
     } catch (error) {
       console.log(error);
     }
@@ -45,9 +47,13 @@ export class MongoService implements OnModuleDestroy {
 
   async activateJob(jobName: string) {
     try {
+      let mongoClient = await this.client.connect();
+      this.collection = mongoClient
+        .db()
+        .collection(this.mongoConfig.collection);
       const docs = await this.collection.findOneAndUpdate(
         { cronName: jobName },
-        { status: isActiveEnum.ACTIVE },
+        { $set: { status: isActiveEnum.ACTIVE } },
         { upsert: true }
       );
       return docs;
@@ -57,11 +63,22 @@ export class MongoService implements OnModuleDestroy {
   }
   async deactivateJob(jobName: string) {
     try {
+      console.log("here");
+      let mongoClient = await this.client.connect();
+      this.collection = mongoClient
+        .db()
+        .collection(this.mongoConfig.collection);
       const docs = await this.collection.findOneAndUpdate(
         { cronName: jobName },
-        { status: isActiveEnum.DEACTIVATE },
-        { upsert: true }
+        { $set: { status: isActiveEnum.DEACTIVATE } },
+        {
+          upsert: true,
+        }
       );
+      setTimeout(()=>{
+
+        mongoClient.close();
+      },1000);
       return docs;
     } catch (error) {
       console.log(error);
@@ -70,11 +87,18 @@ export class MongoService implements OnModuleDestroy {
 
   async updateJob(jobName: string, job: any) {
     try {
+      let mongoClient = await this.client.connect();
+      this.collection = mongoClient
+        .db()
+        .collection(this.mongoConfig.collection);
       const docs = await this.collection.findOneAndUpdate(
         { cronName: jobName },
-        job,
+        { $set: job },
         { upsert: true }
       );
+      setTimeout(()=>{
+        mongoClient.close();
+      },1000);
       return docs;
     } catch (error) {
       console.log(error);

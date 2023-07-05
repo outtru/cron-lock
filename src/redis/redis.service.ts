@@ -8,10 +8,10 @@ export class RedisService {
   constructor(redisConfig: any) {
     let config = {};
     config["port"] = redisConfig.redisPort;
-    config["host"] = redisConfig.redisPort;
-    config["password"] = redisConfig.redisPort;
-    config["username"] = redisConfig.redisPort;
-    config["tls"] = redisConfig.redisPort;
+    config["host"] = redisConfig.redisHost;
+    config["password"] = redisConfig.redisPassword;
+    config["username"] = redisConfig.redisUserName;
+    config["tls"] = redisConfig.redisTls;
     this.redis = new Redis(config);
   }
 
@@ -24,5 +24,8 @@ export class RedisService {
   }
   async get(key: string): Promise<string> {
     return await this.redis.get(key);
+  }
+  async del(key: string): Promise<number> {
+    return await this.redis.del(key);
   }
 }
